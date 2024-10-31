@@ -1,0 +1,84 @@
+services:
+  #PHP service container
+    api_app:
+      platform: linux/amd64
+      build: 
+        args:
+          user: laravel_eleven_user
+          uid: 1000
+        context: ./
+        dockerfile: Dockerfile
+      image: api_app_image
+      container_name: api_app
+      restart: unless-stopped
+      depends_on:
+        - api_mysql
+      working_dir: /var/www
+      volumes: 
+        - ./:/var/www
+      networks:
+        - laravel_eleven_app_network
+    
+    #nginx service
+    api_webserver:
+      platform: linux/amd64
+      image: nginx:alpine
+      container_name: webserver_container
+      restart: unless-stopped
+      ports:
+        -   "81:80"
+      depends_on: 
+        - api_app
+      volumes:
+        - ./:/var/www
+        - ./docker-compose/nginx/:/etc/nginx/conf.d
+      networks:
+        laravel_eleven_app_network:
+          aliases:
+            - kle.test
+    
+    #mysql service
+    api_mysql: #name defined here will be the new DB_HOST value in env.
+      platform: linux/amd64
+      image: mysql:latest
+      container_name: api_mysql_container
+      restart: unless-stopped
+      ports:
+        - "3306:3306" #The port value on the left side will be the new DB_PORT value in env.
+      environment:
+        MYSQL_DATABASE: "laravel_eleven_db" #Will be the new DB_DATABASE value in env
+        MYSQL_USER: "laravel_eleven_user" #the  DB_USER value in env will be "root" because we defined a root user in Dockerfile
+        MYSQL_ROOT_PASSWORD: "password"
+        MYSQL_PASSWORD: "password"  #Will be the new DB_password value in env
+      volumes:
+        -   api_mysql_data:/var/lib/mysql  
+      networks:
+        - laravel_eleven_app_network
+      
+    #phpmyadmin
+    laravel_eleven_phpmyadmin:
+        image: phpmyadmin:5.2.1-apache
+        container_name: laravel_eleven_phpmyadmin_container
+        restart: unless-stopped
+        ports: 
+          - "8383:80"
+        environment:
+          PMA_HOST: api_mysql
+          PMA_PORT: 3306
+          PMA_USER: root
+          PMA_PASSWORD: password
+        networks: 
+          - laravel_eleven_app_network
+
+volumes:
+  api_mysql_data:
+    driver: local
+
+
+networks:
+    laravel_eleven_app_network:
+        external: true
+        name: laravel_eleven_app_network
+        driver: bridge
+
+        
